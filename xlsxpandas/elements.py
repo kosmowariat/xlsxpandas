@@ -20,7 +20,8 @@ from __internals__ import (
 class Element(object):
     """Implementation of an atomic report element
     
-    It is drawn in the supplied matrix xy-coordinates.
+    It is fed to a Drawer object and then
+    it is drawn in the supplied matrix xy-coordinates.
     If height or width is greater than 1, then appropriate cells
     (counting from the top-left corner are merged).
     
@@ -43,6 +44,10 @@ class Element(object):
             should be one of the valid xlsxwriter worksheet write methods (including `write_rich_string`)
         write_args : dict
             optional keyword arguments passed to the write method
+        col_width : float, str ['auto'] for None
+            width of the column. If the element's width is greater than 1, then width determines total width of all columns
+        padding : float
+            padding added on both sides when `col_width = 'auto'`
     
     Returns
     -------
@@ -55,6 +60,8 @@ class Element(object):
         * comment_params : element's comment parameters
         * write_method : name of a write method
         * write_args : optional keyword arguments for the write method
+        * col_width : optional column width definition
+        * padding : padding added to column width when auto resizing
     """
     
     # -------------------------------------------------------------------------
@@ -114,6 +121,23 @@ class Element(object):
     @write_args.setter
     def write_args(self, value):
         self._write_args = validate_param(value, 'write_args', dict)
+    
+    @property
+    def col_width(self):
+        return self._col_width
+    @col_width.setter
+    def col_width(self, value):
+        self._col_width = \
+            validate_param(value, 'col_width', (float, str, type(None)),
+                           lambda x: x if isinstance(x, (str, type(None))) else float(x),
+                           'if isinstance(x, float) x > 0 else True')
+    
+    @property
+    def padding(self):
+        return self._padding
+    @padding.setter
+    def padding(self, value):
+        self._padding = validate_param(value, 'padding', float, True, 'x > 0')
     
     # -------------------------------------------------------------------------
     
@@ -216,90 +240,187 @@ class Element(object):
             if self.comment is not None:
                 addr = self.xl_upleft(x, y)
                 ws.write_comment(addr, self.comment, self.comment_params)
-
-###############################################################################
-
-class HeaderElement(Element):
-    """Header element class
-    
-    This is an extension of the Element class that adjust column widths while drawing.
-    If col_width is None then column width is left untouched.
-    If it is 'auto' then auto-resizing is done (adjusting to the length of the cell value text).
-    If it is flaot then fixed width is set.
-    
-    Attributes:
-        col_width (float/str/None): column width
-        padding (float): padding addedd to both sides in auto-resizing
-    """
-    
-    # -------------------------------------------------------------------------
-    
-    @property
-    def col_width(self):
-        """Column width given as a float
-        """
-        return self._col_width
-    @col_width.setter
-    def col_width(self, value):
-        if isinstance(value, str):
-            if value != 'auto':
-                raise ValueError("col_width has to be float, None or 'auto'.")
-        elif value is None:
-            pass
-        else:
-            try:
-                value = float(value)
-            except (TypeError, ValueError):
-                raise TypeError("col_width has to be float, None or 'auto'.")
-        self._col_width = value
         
-    @property
-    def padding(self):
-        """Padding given as a float
-        """
-        return self._padding
-    @padding.setter
-    def padding(self, value):
-        self._padding = float(value)
-    
-    # -------------------------------------------------------------------------
-    
-    def __init__(self, value, height = 1, width = 1, style = {}, 
-                 comment = None, comment_params = {}, 
-                 col_width = 'auto', padding = 1.0):
-        """Constructor method
-        """
-        Element.__init__(self, value, height, width, style, comment, comment_params)
-        self.col_width = col_width
-        self.padding = padding
-    
-    def _value_len(self):
-        """Computes length of the element's value
-        """
-        if self.value is not None:
-            return len(str(self.value))
-        else:
-            return None
-    
-    def draw(self, x, y, ws, wb):
-        """Extension of the draw method of the parent class
-        """        
-        Element.draw(self, x, y, ws, wb)
+        # Apply column width adjustment
+        def vlen(value):
+            if value is not None:
+                return len(str(value))
+            else:
+                return None
+        
         if isinstance(self.col_width, float):
             col_width = self.col_width
         elif isinstance(self.col_width, str) and self.col_width == 'auto':
             try:
-                col_width = float(self._value_len() + self.padding * 2) / self.width
+                col_width = float(vlen(self.value) + self.padding * 2) / self.width
             except TypeError:
                 return
         elif self.col_width is None:
             return
         else:
             raise ValueError('incorrect value of col_width.')
-        ws.set_column(y, y + self.width - 1, col_width)
+        ws.set_column(y, y + self.width - 1, col_width / self.width)
 
 ###############################################################################
 
+class Series(pd.Series):
+    """Series of elements
+    
+    This class utilizes functionalities of pandas.Series class.
+    
+    Parameters
+    ----------
+        data : array-like, dict or scalar value
+            elements that series is to be made of
+        name : number, str, Element or None
+            if not None, then top element with the value is added as the Series' header
+        width : int (>= 1)
+            width/height of the series' elements
+        horizontal : bool
+            should series be aligned horizontally or vertically
+        first : int or dict
+            additional styling for the first element of the series;
+            if int then it is a border value; dict is an arbitrary styling compatible with xlsxwriter
+        last : int or dict
+            additional styling for the last element of the series
+        **kwargs : other optional parameters passed to the pandas Series constructor
+    
+    Returns
+    -------
+        * all attributes inherited from the pandas Series class
+        * name : series name value/element
+        * width : width/height of the elements
+        * horizontal : series alignment flag
+        * length : total length of all elements along the alignment axis
+    """
+    
+    # -------------------------------------------------------------------------
+    
+    @property
+    def width(self):
+        return self._width
+    @width.setter
+    def width(self, value):
+        self._width = validate_param(value, 'width', float, True, 'x > 0')
+    
+    @property
+    def horizontal(self):
+        return self._horizontal
+    @horizontal.setter
+    def horizontal(self, value):
+        self._horizontal = validate_param(value, 'horizontal', bool)
+    
+    @property
+    def length(self):
+        if self.horizontal:
+            return sum([ x.width for x in self.values ])
+        else:
+            return sum([ x.height for x in self.values ])
+    @length.setter
+    def length(self, value):
+        raise AttributeError('length is read-only.')
+    
+    # -------------------------------------------------------------------------
+    
+    def __init__(self, data, name = None, width = 1, horizontal = False,
+                 first = {}, last = {}, **kwargs):
+        """Initialization method
+        """
+        super(Series, self).__init__(data, **kwargs)
+        felem = self.values[0]
+        lelem = self.values[-1]
+        fpos = 'left' if horizontal else 'top'
+        lpos = 'right' if horizontal else 'bottom'
+        fstl = {**felem.style, fpos: first} if isinstance(first, int) \
+                                            else {**felem.style, **first}
+        lstl = {**lelem.style, lpos: last} if isinstance(last, int) \
+                                           else {**felem.style, **last}
+        felem.style = fstl
+        lelem.style = lstl
+        self.values[0] = felem
+        self.values[-1] = lelem
+        if name:
+            if isinstance(name, Element):
+                self.name = name
+            else:
+                self.name = Element(name)
+        else:
+            self.name = None
+        attr = 'height' if horizontal else 'width'
+        if self.name:
+            setattr(self.name, attr, width)
+        for elem in self.values:
+            setattr(elem, attr, width)
+        self.width = width
+        self.horizontal = horizontal
+    
+    def draw(self, x, y, ws, wb, na_rep, **kwargs):
+        """Draw Series in the worksheet
+        
+        Parameters
+        ----------
+            x : int
+                x-coordinate for the upper-left corner of the Series
+            y : int
+                y-coordinate for the upper-left corner of the Series
+            ws : xlsxwriter.worksheet.Worksheet
+                worksheet to write the Element in
+            wb : xlsxwriter.workbook.Workbook
+                workbook the worksheet is in
+            na_rep : str
+                string representation of missing values
+            **kwargs : any
+                optional keyword parameters passed to the write methods
+        """
+        if self.name:
+            self.name.draw(x, y, ws, wb, na_rep, **kwargs)
+            if self.horizontal:
+                y += self.name.width
+            else:
+                x += self.name.height
+        if self.horizontal:
+            for elem in self.values:
+                elem.draw(x, y, ws, wb, na_rep, **kwargs)
+                y += elem.width
+        else:
+            for elem in self.values:
+                elem.draw(x, y, ws, wb, na_rep, **kwargs)
+                x += elem.height
+        
+###############################################################################
+
+class DataFrame(pd.DataFrame):
+    """DataFrame of elements
+    
+    This class utilizes functionalities of pandas.DataFrame class.
+    
+    Parameters
+    ----------
+        *args : Element objects
+            elements that series is to be made of
+        name : number, str, Element or None
+            if not None, then top element with the value is added as the Series' header
+        width : int (>= 1)
+            width/height of the series' elements
+        horizontal : bool
+            should series be aligned horizontally or vertically
+        first : int or dict
+            additional styling for the first element of the series;
+            if int then it is a border value; dict is an arbitrary styling compatible with xlsxwriter
+        last : int or dict
+            additional styling for the last element of the series
+    
+    Returns
+    -------
+        * all attributes inherited from the pandas Series class
+        * name : series name value/element
+        * width : width/height of the elements
+        * horizontal : series alignment flag
+        * length : total length of all elements along the alignment axis
+    """
+
+###############################################################################
+        
 class Matrix(object):
     """Matrix of elements
     
