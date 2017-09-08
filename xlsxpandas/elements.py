@@ -332,7 +332,7 @@ class Series(pd.Series):
     
     # -------------------------------------------------------------------------
     
-    def __init__(self, data, name = None, width = 1, horizontal = False,
+    def __init__(self, data, name = None, horizontal = False,
                  first = {}, last = {}, **kwargs):
         """Initialization method
         """
@@ -352,7 +352,6 @@ class Series(pd.Series):
         self.values[0] = felem
         self.values[-1] = lelem
         
-        self.width = width
         self.horizontal = horizontal
         
         # Determine name ---
@@ -363,20 +362,6 @@ class Series(pd.Series):
                 self.name = Element(name)
         else:
             self.name = None
-        attr = 'height' if horizontal else 'width'
-        
-        # Determine widths / heights
-        if self.name:
-            if isinstance(width, int):
-                setattr(self.name, attr, width)
-            else:
-                setattr(self.name, attr, width[0])
-        if isinstance(width, int):
-            for index, elem in self.iteritems():
-                setattr(elem, attr, width)
-        else:
-            for i in range(len(self.values)):
-                setattr(self.values[i], attr, width[i])
     
     def draw(self, x, y, ws, wb, na_rep, **kwargs):
         """Draw Series in the worksheet
@@ -593,54 +578,62 @@ class Dictionary(object):
     def context(self, value):
         self._context = validate_param(value, 'context', dict)
     
+    @property
+    def width(self):
+        width = 0
+        for elem in self.structure:
+            w = elem['key'].get('width', 1)
+            w += elem['value'].get('width', 1)
+            w += elem['hspace']
+            if w > width:
+                width = w
+        return width
+    @width.setter
+    def width(self, value):
+        raise AttributeError('width is read-only.')
+    
+    @property
+    def height(self):
+        height = 0
+        for elem in self.structure:
+            w = elem['key'].get('width', 1)
+            if isinstance(elem['value']['value'], list):
+                vw = len(elem['value']['value']) * elem['value']['height']
+            if vw > w:
+                w = vw
+            height += w
+            height += elem['vspace']
+        return height
+    @height.setter
+    def height(self, value):
+        raise AttributeError('height is read-only.')
+    
     # -------------------------------------------------------------------------
     
     def __init__(self, structure, hspace = 1, vspace = 0,
-                 field_params = {}, content_params = {}, context = None):
+                 keys_params = {}, values_params = {}, context = None):
         """Constructor method
         """
         self.structure = structure
         self.hspace = hspace
         self.vspace = vspace
-        self.field_params = field_params
-        if content_params.get('col_width') is None:
-            content_params['col_width'] = None
-        self.content_params = content_params
+        self.keys_params = keys_params
+        self.values_params = values_params
         self.context = context
-        
-        # Determine height and width ---
-        height = 0
-        width = 0
-        for field, content in self.structure.items():
-            fh = field_params.get('height', 1)
-            fw = field_params.get('width', 1)
-            cw = content_params.get('width', 1)
-            w = fw + cw + self.vspace
-            if w > width:
-                width = w
-            vals = content['content']
-            if not isinstance(vals, list):
-                vals = [vals]
-            ch = len(vals) * content_params.get('height', 1)
-            if fh > ch:
-                height += fh
-            else:
-                height += ch
-        self.height = height
-        self.width = width
     
-    def load_config(self, path = None):
+    @staticmethod
+    def load_config(path = None):
         """Loads config from a config.yaml file
     
-        Args:
-            path (str): path to a config file; may be None, then Collector object's default is used
+        Parameters
+        ----------
+            path : str
+                path to a config file
             
-        Returns:
-            OrderedDict: config parsed to a dictionary
-        """        
-        if path is None:
-            path = self.config_path
-    
+        Returns
+        -------
+            structure: config parsed to a list of OrderedDicts
+        """            
         def ordered_load(stream, Loader = yaml.Loader, object_pairs_hook = OrderedDict):
             class OrderedLoader(Loader):
                 pass
@@ -660,24 +653,14 @@ class Dictionary(object):
         finally:
             cnf.close()
         return config   
-
-    def _merge_styles(self, style, additional_style):
-        """Add and/or change styling dict
-        
-        Args:
-            style (dict): original style dictionary
-            additional_style (dict): dict with additional styling rules
-        
-        Returns:
-            dict: merge styling dictionary
-        """
-        merged_style = style.copy()
-        for key, value in additional_style.items():
-            merged_style[key] = value
-        return merged_style
     
     def process_value(self, x):
         """Evaluate string agains a context
+        
+        Parameters
+        ----------
+            x : any
+                value; syntactically correct strings are processed and evaluated in the provided context
         """
         if isinstance(x, str) and re.match('^@eval@', x):
             x = re.sub('^@eval@', '', x)
@@ -685,34 +668,40 @@ class Dictionary(object):
         else:
             return x
 
-    def draw(self, x, y, ws, wb):
-        """Draw Dictionary in a worksheet
+    def draw(self, x, y, ws, wb, na_rep, **kwargs):
+        """Draw Dictionary in the worksheet
         
-        Args:
-            x (int): x-coordinate (rows)
-            y (int): y-coordinate (columns)
-            ws (xlsxwriter.worksheet.Worksheet): worksheet to draw in
-            wb (xlsxwriter.workbook.Workbook): workbook to draw in
+        Parameters
+        ----------
+            x : int
+                x-coordinate for the upper-left corner of the Dictionary
+            y : int
+                y-coordinate for the upper-left corner of the Dictionary
+            ws : xlsxwriter.worksheet.Worksheet
+                worksheet to write the Element in
+            wb : xlsxwriter.workbook.Workbook
+                workbook the worksheet is in
+            na_rep : str
+                string representation of missing values
+            **kwargs : any
+                optional keyword parameters passed to the write methods
         """
         y0 = y
-        for field, data in self.structure.items():
-            field_params = self._merge_styles(self.field_params, data.get('field_params', {}))
-            content_params = self._merge_styles(self.content_params, data.get('content_params', {}))
-            field_value = self.process_value(field)
-            vspace = data.get('vspace', self.vspace)
-            Field = HeaderElement(field_value, **field_params)
-            Field.draw(x, y, ws, wb)
-            content = data['content']
-            if not isinstance(content, list):
-                content = [content]
-            elif content is None:
-                content = ['']
-            for value in content:
-                value = self.process_value(value)
-                Content = HeaderElement(value, **content_params)
-                Content.draw(x, y  + Field.width + self.hspace, ws, wb)
-                x += Content.height
+        for elem in self.structure:
+            elem['key']['value'] = self.process_value(elem['key']['elem'])
+            elem['key']['style'] = {**self.keys_params, **elem['key']['style']}
+            if isinstance(elem['value']['value'], list):
+                elem['value']['value'] = [ self.process_value(x) for x in elem['value']['value'] ]
+            else:
+                elem['value']['value'] = self.process_value(elem['value']['value'])
+            elem['value']['style'] = {**self.values_params, **elem['value']['style']}
+            key = Element(**elem['key'])
+            key.draw(x, y, ws, wb, na_rep, **kwargs)
+            y += self.hspace + 1
+            for value in elem['value']['value']:
+                elem = Element(**{**elem['value'], 'value': value})
+                elem.draw(x, y, ws, wb, na_rep, **kwargs)
+                x += elem.height
             y = y0
-            x += vspace
 
 ###############################################################################
