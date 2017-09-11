@@ -272,23 +272,34 @@ class Series(pd.Series):
     ----------
         data : array-like, dict or scalar value
             elements that series is to be made of
-        name : number, str, Element or None
-            if not None, then top element with the value is added as the Series' header
         horizontal : bool
             should series be aligned horizontally or vertically
+        height : int
+            height of cells of the series
+        width : int
+            width of cells of the series
         first : int or dict
             additional styling for the first element of the series;
             if int then it is a border value; dict is an arbitrary styling compatible with xlsxwriter
         last : int or dict
             additional styling for the last element of the series
+        write_method : str
+            name of the write method for the series
+        write_args : dict
+            additional arguments for the write method of the series
+        name_write_method : sr
+            name of the write method for the series' name
+        name_write_args : dict
+            additional arguments for the write method of the series' name
         **kwargs : other optional parameters passed to the pandas Series constructor
     
     Returns
     -------
         * all attributes inherited from the pandas Series class
-        * name : series name value/element
         * horizontal : series alignment flag
         * length : total length of all elements along the alignment axis
+        * width : total width of the series
+        * height : total height of the series
     """
     
     # -------------------------------------------------------------------------
@@ -332,11 +343,21 @@ class Series(pd.Series):
     
     # -------------------------------------------------------------------------
     
-    def __init__(self, data, name = None, horizontal = False,
-                 first = {}, last = {}, **kwargs):
+    def __init__(self, data, horizontal = False, height = 1, width = 1,
+                 name_style = {}, style = {}, first = {}, last = {}, 
+                 write_method = 'write', write_args = {}, 
+                 name_write_method = 'write', name_write_args = {}, **kwargs):
         """Initialization method
+        
+        xlsxpandas Series are always constructed from a pandas Series object.
         """
         super(Series, self).__init__(data, **kwargs)
+        
+        # Initilize elements ---
+        for i in range(self.size):
+            elem = Element(self.values[i], height, width, style,
+                           write_method = write_method, write_args = write_args)
+            self.values[i] = elem
         
         # Determine first and last elements' styles ---
         felem = self.values[0]
@@ -352,16 +373,15 @@ class Series(pd.Series):
         self.values[0] = felem
         self.values[-1] = lelem
         
-        self.horizontal = horizontal
+        # Make series name ---
+        if self.name:
+            elem = Element(self.name, height, width, 
+                           style = {**style, **name_style},
+                           write_method = name_write_method, 
+                           write_args = name_write_args)
+            self.name = elem            
         
-        # Determine name ---
-        if name:
-            if isinstance(name, Element):
-                self.name = name
-            else:
-                self.name = Element(name)
-        else:
-            self.name = None
+        self.horizontal = horizontal
     
     def draw(self, x, y, ws, wb, na_rep, **kwargs):
         """Draw Series in the worksheet
@@ -446,7 +466,7 @@ class DataFrame(pd.DataFrame):
                  left = {}, right = {}, **kwargs):
         """Initialization method
         """
-        super(Series, self).__init__(data, **kwargs)
+        super(DataFrame, self).__init__(data, **kwargs)
         
         # Determine boundary styles ---
         top = {'top': top} if isinstance(top, int) else top
