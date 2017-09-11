@@ -541,7 +541,7 @@ class Dictionary(object):
     def structure(self, value):
         if isinstance(value, str):
             value = self.load_config(value)
-        self._structure = validate_param(value, 'structure', OrderedDict)
+        self._structure = validate_param(value, 'structure', list)
     
     @property
     def hspace(self):
@@ -611,7 +611,7 @@ class Dictionary(object):
     # -------------------------------------------------------------------------
     
     def __init__(self, structure, hspace = 1, vspace = 0,
-                 keys_params = {}, values_params = {}, context = None):
+                 keys_params = {}, values_params = {}, context = {}):
         """Constructor method
         """
         self.structure = structure
@@ -688,13 +688,13 @@ class Dictionary(object):
         """
         y0 = y
         for elem in self.structure:
-            elem['key']['value'] = self.process_value(elem['key']['elem'])
-            elem['key']['style'] = {**self.keys_params, **elem['key']['style']}
+            elem['key']['value'] = self.process_value(elem['key']['value'])
+            elem['key']['style'] = {**self.keys_params, **elem['key'].get('style', {})}
             if isinstance(elem['value']['value'], list):
                 elem['value']['value'] = [ self.process_value(x) for x in elem['value']['value'] ]
             else:
                 elem['value']['value'] = self.process_value(elem['value']['value'])
-            elem['value']['style'] = {**self.values_params, **elem['value']['style']}
+            elem['value']['style'] = {**self.values_params, **elem['value'].get('style',{})}
             key = Element(**elem['key'])
             key.draw(x, y, ws, wb, na_rep, **kwargs)
             y += self.hspace + 1
