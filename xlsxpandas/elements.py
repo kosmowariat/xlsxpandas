@@ -3,7 +3,6 @@
 # Imported modules ------------------------------------------------------------
 
 # Full imports ---
-import xlsxwriter
 import sys, yaml, re
 import pandas as pd
 import numpy as np
@@ -11,7 +10,7 @@ import numpy as np
 # Partial imports ----
 from collections import OrderedDict
 from xlsxwriter.utility import xl_rowcol_to_cell
-from __internals__ import (
+from xlsxpandas.__internals__ import (
     validate_param
 )
 

@@ -12,7 +12,7 @@ from xlsxwriter.utility import (
     xl_rowcol_to_cell,
     xl_cell_to_rowcol
 )
-from __internals__ import (
+from xlsxpandas.__internals__ import (
     validate_param
 )
 
