@@ -248,18 +248,19 @@ class Element(object):
             else:
                 return None
         
-        if isinstance(self.col_width, float):
-            col_width = self.col_width
-        elif isinstance(self.col_width, str) and self.col_width == 'auto':
-            try:
-                col_width = float(vlen(self.value) + self.padding * 2) / self.width
-            except TypeError:
+        if hasattr(self, 'col_width'):
+            if isinstance(self.col_width, float):
+                col_width = self.col_width
+            elif isinstance(self.col_width, str) and self.col_width == 'auto':
+                try:
+                    col_width = float(vlen(self.value) + self.padding * 2) / self.width
+                except TypeError:
+                    return
+            elif self.col_width is None:
                 return
-        elif self.col_width is None:
-            return
-        else:
-            raise ValueError('incorrect value of col_width.')
-        ws.set_column(y, y + self.width - 1, col_width / self.width)
+            else:
+                raise ValueError('incorrect value of col_width.')
+            ws.set_column(y, y + self.width - 1, col_width / self.width)
 
 ###############################################################################
 
@@ -717,10 +718,16 @@ class Dictionary(object):
             key = Element(**elem['key'])
             key.draw(x, y, ws, wb, na_rep, **kwargs)
             y += self.hspace + 1
-            for value in elem['value']['value']:
-                elem = Element(**{**elem['value'], 'value': value})
-                elem.draw(x, y, ws, wb, na_rep, **kwargs)
-                x += elem.height
+            values = elem['value']['value']
+            if isinstance(values, list):
+                for value in elem['value']['value']:
+                    e = Element(**{**elem['value'], 'value': value})
+                    e.draw(x, y, ws, wb, na_rep, **kwargs)
+                    x += e.height
+            else:
+                e = Element(**{**elem['value'], 'value': values})
+                e.draw(x, y, ws, wb, na_rep, **kwargs)
+                x += e.height
             y = y0
 
 ###############################################################################
