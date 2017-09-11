@@ -278,6 +278,8 @@ class Series(pd.Series):
             height of cells of the series
         width : int
             width of cells of the series
+        style : dict
+            base style of the series
         first : int or dict
             additional styling for the first element of the series;
             if int then it is a border value; dict is an arbitrary styling compatible with xlsxwriter
@@ -287,10 +289,6 @@ class Series(pd.Series):
             name of the write method for the series
         write_args : dict
             additional arguments for the write method of the series
-        name_write_method : sr
-            name of the write method for the series' name
-        name_write_args : dict
-            additional arguments for the write method of the series' name
         **kwargs : other optional parameters passed to the pandas Series constructor
     
     Returns
@@ -344,9 +342,8 @@ class Series(pd.Series):
     # -------------------------------------------------------------------------
     
     def __init__(self, data, horizontal = False, height = 1, width = 1,
-                 name_style = {}, style = {}, first = {}, last = {}, 
-                 write_method = 'write', write_args = {}, 
-                 name_write_method = 'write', name_write_args = {}, **kwargs):
+                 style = {}, first = {}, last = {}, 
+                 write_method = 'write', write_args = {}, **kwargs):
         """Initialization method
         
         xlsxpandas Series are always constructed from a pandas Series object.
@@ -371,15 +368,7 @@ class Series(pd.Series):
         felem.style = fstl
         lelem.style = lstl
         self.values[0] = felem
-        self.values[-1] = lelem
-        
-        # Make series name ---
-        if self.name:
-            elem = Element(self.name, height, width, 
-                           style = {**style, **name_style},
-                           write_method = name_write_method, 
-                           write_args = name_write_args)
-            self.name = elem            
+        self.values[-1] = lelem         
         
         self.horizontal = horizontal
     
@@ -401,12 +390,6 @@ class Series(pd.Series):
             **kwargs : any
                 optional keyword parameters passed to the write methods
         """
-        if self.name:
-            self.name.draw(x, y, ws, wb, na_rep, **kwargs)
-            if self.horizontal:
-                y += self.name.width
-            else:
-                x += self.name.height
         if self.horizontal:
             for elem in self.values:
                 elem.draw(x, y, ws, wb, na_rep, **kwargs)
@@ -427,6 +410,12 @@ class DataFrame(pd.DataFrame):
     ----------
         data : numpy ndarray (structured or homogeneous), dict, or DataFrame
             elements that data frame is to be made of
+        height : int
+            height of the elements of the data frame
+        width : int
+            width of the elements of the data frame
+        style : dict
+            base style of the data frame
         top : int or dict
             additional styling for the top row of the data frame;
             if int then it is a border value; dict is an arbitrary styling compatible with xlsxwriter
@@ -436,6 +425,10 @@ class DataFrame(pd.DataFrame):
             additional styling for the leftmost column of the data frame
         right : int or dict
             additional styling for the rightmost column of the data frame
+        write_method : str
+            write method of the data frame
+        write_args : dict
+            addtional arguments for the write method of the data frame
     
     Returns
     -------
@@ -462,11 +455,19 @@ class DataFrame(pd.DataFrame):
     
     # -------------------------------------------------------------------------
     
-    def __init__(self, data, top = {}, bottom = {},
-                 left = {}, right = {}, **kwargs):
+    def __init__(self, data, height = 1, width = 1, style = {}, 
+                 top = {}, bottom = {}, left = {}, right = {}, 
+                 write_method = 'write', write_args = {}, **kwargs):
         """Initialization method
         """
         super(DataFrame, self).__init__(data, **kwargs)
+        
+        # Initialize elements ---
+        for i in range(self.shape[0]):
+            for j in range(self.shape[1]):
+                elem = Element(self.iloc[i, j], height, width, style,
+                               write_method = write_method, write_args = write_args)
+                self.iloc[i, j] = elem
         
         # Determine boundary styles ---
         top = {'top': top} if isinstance(top, int) else top
@@ -475,14 +476,12 @@ class DataFrame(pd.DataFrame):
         right = {'right': right} if isinstance(right, int) else right
         
         # Apply boundary styles ---
-        for elem in self.iloc[0, :].iteritems():
-            elem.style = {**elem.style, **top}
-        for elem in self.iloc[:, -1].iteritems():
-            elem.style = {**elem.style, **right}
-        for elem in self.iloc[-1, :].iteritems():
-            elem.style = {**elem.style, **bottom}
-        for elem in self.iloc[:, 0].iteritems():
-            elem.style = {**elem.style, **left}
+        for i in range(self.shape[1]):
+            self.iloc[0, i].style = {**self.iloc[0, i].style, **top}
+            self.iloc[-1, i].style = {**self.iloc[-1, i].style, **bottom}
+        for i in range(self.shape[0]):
+            self.iloc[i, 0].style = {**self.iloc[i, 0].style, **left}
+            self.iloc[i, -1].style = {**self.iloc[i, -1].style, **right}
     
     def draw(self, x, y, ws, wb, na_rep, **kwargs):
         """Draw DataFrame in the worksheet
