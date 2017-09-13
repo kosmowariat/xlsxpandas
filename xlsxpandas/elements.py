@@ -495,12 +495,19 @@ class DataFrame(pd.DataFrame):
             write method of the data frame
         write_args : dict
             addtional arguments for the write method of the data frame
+        name_args : dict
+            additional arguments passed to name element constructors if names are drawn
+        col_args : dict
+            additional arbitrary arguments passed to column series constructor while drawing
+        **kwargs : other optional parameters passed to the pandas DataFrame constructor
     
     Returns
     -------
         * all attributes inherited from the pandas Series class
         * width : total width of the data frame in the excel sheet
         * height : total height of the data frame in the excel sheet
+        * name_args : additional arguments passed to name elements constructor
+        * col_args : additional properties for specific columns
     """
     
     # -------------------------------------------------------------------------
@@ -519,22 +526,46 @@ class DataFrame(pd.DataFrame):
     def height(self, value):
         raise AttributeError('height is read-only.')
     
+    @property
+    def name_args(self):
+        return self._name_args
+    @name_args.setter
+    def name_args(self, value):
+        self._name_args = validate_param(value, 'name_args', dict)
+    
+    @property
+    def col_args(self):
+        return self._col_args
+    @col_args.setter
+    def col_args(self, value):
+        self._col_args = validate_param(value, 'col_args', dict)
+    
     # -------------------------------------------------------------------------
     
     def __init__(self, data, height = 1, width = 1, style = {}, 
                  top = {}, bottom = {}, left = {}, right = {}, 
-                 write_method = 'write', write_args = {}, **kwargs):
+                 write_method = 'write', write_args = {},
+                 name_args = {}, col_args = {}, **kwargs):
         """Initialization method
         """
         super(DataFrame, self).__init__(data, **kwargs)
         
         # Initialize elements ---
-        for i in range(self.shape[0]):
-            for j in range(self.shape[1]):
-                elem = Element(self.iloc[i, j], height, width, style,
-                               write_method = write_method, write_args = write_args)
-                self.iloc[i, j] = elem
-        
+        for i, row in self.iterrows():
+            for j, elem in row.iteritems():
+                if not isinstance(elem, Element):
+                    if isinstance(elem, dict):
+                        stl = elem.pop('style', {})
+                        elem = Element(**elem, style = {**style, **stl})
+                    else:
+                        elem = Element(elem, height, width, style,
+                                       write_method = write_method,
+                                       write_args = write_args)
+                    try:
+                        self.iloc[i, j] = elem
+                    except ValueError:
+                        self.loc[i, j] = elem
+                
         # Determine boundary styles ---
         top = {'top': top} if isinstance(top, int) else top
         bottom = {'bottom': bottom} if isinstance(bottom, int) else bottom
@@ -548,8 +579,11 @@ class DataFrame(pd.DataFrame):
         for i in range(self.shape[0]):
             self.iloc[i, 0].style = {**self.iloc[i, 0].style, **left}
             self.iloc[i, -1].style = {**self.iloc[i, -1].style, **right}
+        
+        self.col_args  = col_args
+        self.name_args = name_args
     
-    def draw(self, x, y, ws, wb, na_rep, **kwargs):
+    def draw(self, x, y, ws, wb, na_rep, draw_names = False, **kwargs):
         """Draw DataFrame in the worksheet
         
         Parameters
@@ -564,19 +598,20 @@ class DataFrame(pd.DataFrame):
                 workbook the worksheet is in
             na_rep : str
                 string representation of missing values
+            draw_names : bool
+                should column names be draw; defaults to False
             **kwargs : any
                 optional keyword parameters passed to the write methods
         """
-        start_y = y
-        for index, row in self.iterrows():
-            h = 0
-            for elem in row.iteritems():
-                elem.draw(x, y, ws, wb, **kwargs)
-                y += elem.width
-                if elem.height > h:
-                    h = elem.height
-            x += h
-            y = start_y
+        for index, col in self.iteritems():
+            cargs = self.col_args.get(index, {})
+            stl   = cargs.pop('style', {})
+            nargs = {**self.name_args, **cargs.pop('name_args', {})}
+            nargs['style'] = {**nargs.get('style', {}), **stl}
+            col   = Series(col, name_args = nargs) \
+                    .addstyle(stl)
+            col.draw(x, y, ws, wb, na_rep, draw_names, **kwargs)
+            y += col.width
 
 ###############################################################################
         
