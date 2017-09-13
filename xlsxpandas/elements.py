@@ -342,7 +342,7 @@ class Series(pd.Series):
     # -------------------------------------------------------------------------
     
     def __init__(self, data, horizontal = False, height = 1, width = 1,
-                 style = {}, first = {}, last = {}, 
+                 style = {}, name_args = {}, first = {}, last = {}, 
                  write_method = 'write', write_args = {}, **kwargs):
         """Initialization method
         
@@ -351,10 +351,26 @@ class Series(pd.Series):
         super(Series, self).__init__(data, **kwargs)
         
         # Initilize elements ---
-        for i in range(self.size):
-            elem = Element(self.values[i], height, width, style,
-                           write_method = write_method, write_args = write_args)
-            self.values[i] = elem
+        for i in self.index:
+            if not isinstance(self[i], Element):
+                if isinstance(self[i], (dict, OrderedDict)):
+                    elem = Element(**self[i])
+                    elem.style = {**style, **elem.style}
+                else:
+                    elem = Element(self[i], height, width, style,
+                                   write_method = write_method, write_args = write_args)
+                self[i] = elem
+        
+        # Determine name element ---
+        if self.name:
+            if not isinstance(self.name, Element):
+                if isinstance(self.name, (dict, OrderedDict)):
+                    self.name = Element(**self.name)
+                    self.name.style = {**style, **self.name.style}
+                else:
+                    stl = name_args.pop('style', {})
+                    self.name = Element(self.name, height, width,
+                                        {**style, **stl}, **name_args)
         
         # Determine first and last elements' styles ---
         felem = self.values[0]
@@ -372,7 +388,49 @@ class Series(pd.Series):
         
         self.horizontal = horizontal
     
-    def draw(self, x, y, ws, wb, na_rep, **kwargs):
+    def setprop(self, propname, value):
+        """Set a property of all elements in series
+        
+        It is useful because it may be used after flitering the series
+        
+        Parameters
+        ----------
+            propname : str
+                property name
+            value : any or a list with the same length as the series
+                new value
+        """
+        if isinstance(value, list):
+            if len(value) != self.size:
+                raise ValueError('`value` has different length than the series.')
+            for i, val in zip(self.index, value):
+                setattr(self[i], propname, val)
+        else:
+            for i in self.index:
+                setattr(self[i], propname, value)
+        return self
+    
+    def addstyle(self, style):
+        """Add additional styling to the existing style
+        
+        For overwriting styles the `setprop` method should be used.
+        
+        Parameters
+        ----------
+            style : dict or list of dicts with the same length as the series
+                additional styling definitions
+        """
+        if isinstance(style, list):
+            if len(style) != self.size:
+                raise ValueError('`style` has differen length than the series.')
+            for i, stl in zip(self.index, style):
+                self[i].style = {**self[i].style, **stl}
+        else:
+            for i in self.index:
+                self[i].style = {**self[i].style, **style}
+        return self
+    
+    def draw(self, x, y, ws, wb, na_rep, draw_name = True, **kwargs):
         """Draw Series in the worksheet
         
         Parameters
@@ -387,14 +445,22 @@ class Series(pd.Series):
                 workbook the worksheet is in
             na_rep : str
                 string representation of missing values
+            draw_name : bool
+                should name element be drawn (if defined)
             **kwargs : any
                 optional keyword parameters passed to the write methods
         """
         if self.horizontal:
+            if draw_name and self.name:
+                self.name.draw(x, y, ws, wb, na_rep, **kwargs)
+                y += self.name.width
             for elem in self.values:
                 elem.draw(x, y, ws, wb, na_rep, **kwargs)
                 y += elem.width
         else:
+            if draw_name and self.name:
+                self.name.draw(x, y, ws, wb, na_rep, **kwargs)
+                x += self.name.height
             for elem in self.values:
                 elem.draw(x, y, ws, wb, na_rep, **kwargs)
                 x += elem.height
@@ -720,7 +786,10 @@ class Dictionary(object):
             values = elem['value']['value']
             if isinstance(values, list):
                 for value in elem['value']['value']:
-                    e = Element(**{**elem['value'], 'value': value})
+                    if isinstance(value, (dict, OrderedDict)):
+                        e = Element(**{**elem['value'], **value})
+                    else:
+                        e = Element(**{**elem['value'], 'value': value})
                     e.draw(x, y, ws, wb, na_rep, **kwargs)
                     x += e.height
             else:
