@@ -142,7 +142,8 @@ class Element(object):
     
     def __init__(self, value, height = 1, width = 1, style = {}, 
                  comment = None, comment_params = {},
-                 write_method = 'write', write_args = {}):
+                 write_method = 'write', write_args = {},
+                 col_width = None, padding = 2.0):
         """Initilization method
         """
         self.value = value

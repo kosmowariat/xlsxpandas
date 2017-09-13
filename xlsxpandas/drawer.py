@@ -100,8 +100,8 @@ class Drawer(object):
         self.ws = ws
         self.wb = wb
         self.checkpoints = OrderedDict()
-        self.prev_x = []
-        self.prev_y = []
+        self.prev_x = [x]
+        self.prev_y = [y]
         self.na_rep = na_rep
     
     def draw(self, elem, **kwargs):
@@ -114,6 +114,8 @@ class Drawer(object):
             **kwargs: keyword arguments passed to the invoked draw method
         """
         elem.draw(self.x, self.y, self.ws, self.wb, self.na_rep, **kwargs)
+        self.prev_x.append(self.x)
+        self.prev_y.append(self.y)
     
     def move(self, x = 0, y = 0):
         """Move drawer
@@ -127,8 +129,6 @@ class Drawer(object):
             y : int
                 shift value for the y-coordinate (columns)
         """
-        self.prev_x.append(self.x)
-        self.prev_y.append(self.y)
         self.x += x
         self.y += y
     
