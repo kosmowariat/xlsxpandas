@@ -388,7 +388,7 @@ class Series(pd.Series):
         
         self.horizontal = horizontal
     
-    def setprop(self, propname, value):
+    def setprop(self, propname, value, inplace = False):
         """Set a property of all elements in the series
         
         It is useful because it may be used after flitering the series
@@ -399,18 +399,22 @@ class Series(pd.Series):
                 property name
             value : any or a list with the same length as the series
                 new value
+            inplace : bool
+                should assignment be done in place; defaults to False
         """
+        sr = self if inplace else self.copy()
         if isinstance(value, list):
-            if len(value) != self.size:
+            if len(value) != sr.size:
                 raise ValueError('`value` has different length than the series.')
-            for i, val in zip(self.index, value):
-                setattr(self[i], propname, val)
+            for i, val in zip(sr.index, value):
+                setattr(sr[i], propname, val)
         else:
-            for i in self.index:
-                setattr(self[i], propname, value)
-        return self
+            for i in sr.index:
+                setattr(sr[i], propname, value)
+        if not inplace:
+            return self
     
-    def addstyle(self, style):
+    def addstyle(self, style, inplace = False):
         """Add additional styling to the existing style
         
         For overwriting styles the `setprop` method should be used.
@@ -419,16 +423,20 @@ class Series(pd.Series):
         ----------
             style : dict or list of dicts with the same length as the series
                 additional styling definitions
+            inplace : bool
+                should assignment be done in place; defaults to False
         """
+        sr = self if inplace else self.copy()
         if isinstance(style, list):
-            if len(style) != self.size:
+            if len(style) != sr.size:
                 raise ValueError('`style` has differen length than the series.')
-            for i, stl in zip(self.index, style):
-                self[i].style = {**self[i].style, **stl}
+            for i, stl in zip(sr.index, style):
+                sr[i].style = {**sr[i].style, **stl}
         else:
-            for i in self.index:
-                self[i].style = {**self[i].style, **style}
-        return self
+            for i in sr.index:
+                sr[i].style = {**sr[i].style, **style}
+        if not inplace:
+            return self
     
     def draw(self, x, y, ws, wb, na_rep, draw_name = True, **kwargs):
         """Draw Series in the worksheet
@@ -585,7 +593,7 @@ class DataFrame(pd.DataFrame):
         self.col_args  = col_args
         self.name_args = name_args
     
-    def setprop(self, propname, value):
+    def setprop(self, propname, value, inplace = False):
         """Set a property of all elements in the data frame
         
         It is useful because it may be used after flitering the data frame.
@@ -598,16 +606,20 @@ class DataFrame(pd.DataFrame):
                 property name
             value : any
                 new value
+            inplace : bool
+                should assignment be done in place; defaults to False
         """
-        for i in self.index:
-            for j in self.columns:
+        df = self if inplace else self.copy()
+        for i in df.index:
+            for j in df.columns:
                 try:
-                    setattr(self.iloc[i, j], propname, value)
+                    setattr(df.iloc[i, j], propname, value)
                 except ValueError:
-                    setattr(self.loc[i, j], propname, value)
-        return self
+                    setattr(df.loc[i, j], propname, value)
+        if not inplace:
+            return self
     
-    def addstyle(self, style):
+    def addstyle(self, style, inplace = False):
         """Add additional styling to the existing style
         
         For overwriting styles the `setprop` method should be used.
@@ -617,14 +629,18 @@ class DataFrame(pd.DataFrame):
         ----------
             style : dict
                 additional styling definitions
+            inplace : bool
+                should assignment be done in place; defaults to False
         """
-        for i in self.index:
-            for j in self.column:
+        df = self if inplace else self.copy()
+        for i in df.index:
+            for j in df.column:
                 try:
-                    self.iloc[i, j].style = {**self.iloc[i, j].style, **style}
+                    df.iloc[i, j].style = {**df.iloc[i, j].style, **style}
                 except ValueError:
-                    self.loc[i, j].style = {**self.loc[i, j].style, **style}
-        return self
+                    df.loc[i, j].style = {**df.loc[i, j].style, **style}
+        if not inplace:
+            return df
     
     def draw(self, x, y, ws, wb, na_rep, draw_names = False, **kwargs):
         """Draw DataFrame in the worksheet
