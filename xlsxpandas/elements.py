@@ -389,7 +389,7 @@ class Series(pd.Series):
         self.horizontal = horizontal
     
     def setprop(self, propname, value):
-        """Set a property of all elements in series
+        """Set a property of all elements in the series
         
         It is useful because it may be used after flitering the series
         
@@ -471,6 +471,8 @@ class DataFrame(pd.DataFrame):
     """DataFrame of elements
     
     This class utilizes functionalities of pandas.DataFrame class.
+    Current implementation does not support data frames with hierarchical indexes,
+    and may not work correctly for such cases.
     
     Parameters
     ----------
@@ -582,6 +584,47 @@ class DataFrame(pd.DataFrame):
         
         self.col_args  = col_args
         self.name_args = name_args
+    
+    def setprop(self, propname, value):
+        """Set a property of all elements in the data frame
+        
+        It is useful because it may be used after flitering the data frame.
+        It does not support multiple new values.
+        It is better to do multiple assignments via specfic series and theirs `setprop` methods.
+        
+        Parameters
+        ----------
+            propname : str
+                property name
+            value : any
+                new value
+        """
+        for i in self.index:
+            for j in self.columns:
+                try:
+                    setattr(self.iloc[i, j], propname, value)
+                except ValueError:
+                    setattr(self.loc[i, j], propname, value)
+        return self
+    
+    def addstyle(self, style):
+        """Add additional styling to the existing style
+        
+        For overwriting styles the `setprop` method should be used.
+        Multiple style alterations should be done on series' level via `Series.addstyle` method.
+        
+        Parameters
+        ----------
+            style : dict
+                additional styling definitions
+        """
+        for i in self.index:
+            for j in self.column:
+                try:
+                    self.iloc[i, j].style = {**self.iloc[i, j].style, **style}
+                except ValueError:
+                    self.loc[i, j].style = {**self.loc[i, j].style, **style}
+        return self
     
     def draw(self, x, y, ws, wb, na_rep, draw_names = False, **kwargs):
         """Draw DataFrame in the worksheet
