@@ -290,6 +290,10 @@ class Series(pd.Series):
             name of the write method for the series
         write_args : dict
             additional arguments for the write method of the series
+        col_width : float, str ['auto'] for None
+            width of the column. If the element's width is greater than 1, then width determines total width of all columns
+        padding : float
+            padding added on both sides when `col_width = 'auto'`
         **kwargs : other optional parameters passed to the pandas Series constructor
     
     Returns
@@ -299,6 +303,8 @@ class Series(pd.Series):
         * length : total length of all elements along the alignment axis
         * width : total width of the series
         * height : total height of the series
+        * col_width : optional column width definition
+        * padding : padding added to column width when auto resizing
     """
     
     # -------------------------------------------------------------------------
@@ -340,11 +346,29 @@ class Series(pd.Series):
     def height(self, value):
         raise AttributeError('height is read-only.')
     
+    @property
+    def col_width(self):
+        return self._col_width
+    @col_width.setter
+    def col_width(self, value):
+        self._col_width = \
+            validate_param(value, 'col_width', (float, str, type(None)),
+                           lambda x: x if isinstance(x, (str, type(None))) else float(x),
+                           'if isinstance(x, float) x > 0 else True')
+    
+    @property
+    def padding(self):
+        return self._padding
+    @padding.setter
+    def padding(self, value):
+        self._padding = validate_param(value, 'padding', float, True, 'x > 0')
+    
     # -------------------------------------------------------------------------
     
     def __init__(self, data, horizontal = False, height = 1, width = 1,
                  style = {}, name_args = {}, first = {}, last = {}, 
-                 write_method = 'write', write_args = {}, **kwargs):
+                 write_method = 'write', write_args = {}, 
+                 col_width = None, padding = 2.0, **kwargs):
         """Initialization method
         
         xlsxpandas Series are always constructed from a pandas Series object.
@@ -388,6 +412,8 @@ class Series(pd.Series):
         self.values[-1] = lelem         
         
         self.horizontal = horizontal
+        self.col_width = col_width
+        self.padding = padding
     
     def setprop(self, propname, value, inplace = False):
         """Set a property of all elements in the series
@@ -473,6 +499,35 @@ class Series(pd.Series):
             for elem in self.values:
                 elem.draw(x, y, ws, wb, na_rep, **kwargs)
                 x += elem.height
+        
+        # Apply column width adjustment
+        def vlen(value):
+            if value is not None:
+                return len(str(value))
+            else:
+                return None
+        
+        if self.col_width and self.horizontal:
+            if isinstance(self.col_width, (float, int)):
+                col_width = float(self.col_width)
+            elif isinstance(self.col_width, str) and self.col_width == 'auto':
+                try:
+                    col_width = max([ vlen(elem.value) for elem in self ])
+                    col_width = (col_width + self.padding * 2) / self.width
+                except TypeError:
+                    return
+            elif self.col_width is None:
+                return
+            else:
+                raise ValueError('incorrect value of col_width.')
+            ws.set_column(y, y + self.width - 1, col_width / self.width)
+        elif self.col_width and not self.horizontal:
+            if isinstance(self.col_width, str) or self.col_width is None:
+                return
+            elif isinstance(self.col_width, (int, float)):
+                row_width = float(self.col_width)
+                for i in range(self.height):
+                    ws.set_row(x + i, row_width / self.height)            
         
 ###############################################################################
 
