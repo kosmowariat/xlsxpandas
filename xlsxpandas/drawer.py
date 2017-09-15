@@ -51,6 +51,8 @@ class Drawer(object):
         * prev_y : list of previous y-coordinates (from the most recent to the last)
         * checkpoints : OrderedDict with a set of named checkpoints
         * na_rep : string representation of missing values (anything that is pandas-null)
+        * widths : list of widths of objects that have been drawn
+        * heights : list of heights of objects that have been drawn
     """
     
     # -------------------------------------------------------------------------
@@ -90,6 +92,20 @@ class Drawer(object):
     def na_rep(self, value):
         self._na_rep = validate_param(value, 'na_rep', str)
     
+    @property
+    def widths(self):
+        return self._widths
+    @widths.setter
+    def widths(self, value):
+        self._widths = validate_param(value, 'widths', list)
+    
+    @property
+    def heights(self):
+        return self._heights
+    @heights.setter
+    def heights(self, value):
+        self._heights = validate_param(value, 'heights', list)
+    
     # -------------------------------------------------------------------------
     
     def __init__(self, ws, wb, x = 0, y = 0, na_rep = ''):
@@ -103,6 +119,8 @@ class Drawer(object):
         self.prev_x = [x]
         self.prev_y = [y]
         self.na_rep = na_rep
+        self.widths = []
+        self.heights = []
     
     def draw(self, elem, **kwargs):
         """Draw an element in a worksheet
@@ -116,6 +134,8 @@ class Drawer(object):
         elem.draw(self.x, self.y, self.ws, self.wb, self.na_rep, **kwargs)
         self.prev_x.append(self.x)
         self.prev_y.append(self.y)
+        self.widths.append(elem.width)
+        self.heights.append(elem.height)
     
     def move(self, x = 0, y = 0):
         """Move drawer
@@ -141,7 +161,7 @@ class Drawer(object):
                 number of steps backwards from the most recent element
         """
         try:
-            return abs(self.prev_y[n] - self.prev_y[n+1])
+            return self.widths[-(1 + n)]
         except IndexError:
             raise IndexError('%dth element does not yet exist.' % (n+1))
     
@@ -154,7 +174,7 @@ class Drawer(object):
                 number of steps backwards from the most recent element
         """
         try:
-            return abs(self.prev_x[n] - self.prev_y[n+1])
+            return self.heights[-(1 + n)]
         except IndexError:
             raise IndexError('%dth element does not yet exist.' % (n+1))
     
