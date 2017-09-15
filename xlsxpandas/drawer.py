@@ -292,6 +292,35 @@ class Drawer(object):
         """
         return re.sub('[A-Z]', '', self.xl_position(x = x))
     
+    def xl_upleft(self, x = 0, y = 0):
+        """Get upper left corner coordinates of the last drawn object
+        
+        Parameters
+        ----------
+            x : int
+                number of rows to shift when determining the position
+            y : int
+                number of columns to shift when determinin the position
+        """
+        return self.xl_position(x = x, y = y)
+    
+    def xl_loright(self, x = 0, y = 0):
+        """Get lower right corner coordinates of the last drawn object
+        
+        Parameters
+        ----------
+            x : int
+                number of rows to shift when determining the position
+            y : int
+                number of columns to shift when determinin the position
+        """
+        return self.xl_position(x = self.height() - 1 + x, y = self.width() - 1 + y)
+
+    def xl_range(self):
+        """Get range covered by the last drawn element
+        """
+        return self.xl_upleft() + ':' + self.xl_loright()
+    
     @staticmethod
     def xl2coords(rng):
         """Translate an excel range string to matrix coordinates
