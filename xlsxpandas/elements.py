@@ -136,7 +136,7 @@ class Element(object):
         return self._padding
     @padding.setter
     def padding(self, value):
-        self._padding = validate_param(value, 'padding', float, True, 'x > 0')
+        self._padding = validate_param(value, 'padding', float, True, 'x >= 0')
     
     # -------------------------------------------------------------------------
     
@@ -354,14 +354,14 @@ class Series(pd.Series):
         self._col_width = \
             validate_param(value, 'col_width', (float, str, type(None)),
                            lambda x: x if isinstance(x, (str, type(None))) else float(x),
-                           'if isinstance(x, float) x > 0 else True')
+                           'x > 0 if isinstance(x, float) else True')
     
     @property
     def padding(self):
         return self._padding
     @padding.setter
     def padding(self, value):
-        self._padding = validate_param(value, 'padding', float, True, 'x > 0')
+        self._padding = validate_param(value, 'padding', float, True, 'x >= 0')
     
     # -------------------------------------------------------------------------
     
@@ -398,18 +398,18 @@ class Series(pd.Series):
                                         {**style, **stl}, **name_args)
         
         # Determine first and last elements' styles ---
-        felem = self.values[0]
-        lelem = self.values[-1]
+        felem = self.iloc[0]
+        lelem = self.iloc[-1]
         fpos = 'left' if horizontal else 'top'
         lpos = 'right' if horizontal else 'bottom'
         fstl = {**felem.style, fpos: first} if isinstance(first, int) \
                                             else {**felem.style, **first}
         lstl = {**lelem.style, lpos: last} if isinstance(last, int) \
-                                           else {**felem.style, **last}
+                                           else {**lelem.style, **last}
         felem.style = fstl
         lelem.style = lstl
-        self.values[0] = felem
-        self.values[-1] = lelem         
+        self.iloc[0] = felem
+        self.iloc[-1] = lelem         
         
         self.horizontal = horizontal
         self.col_width = col_width
@@ -507,7 +507,7 @@ class Series(pd.Series):
             else:
                 return None
         
-        if self.col_width and self.horizontal:
+        if self.col_width and not self.horizontal:
             if isinstance(self.col_width, (float, int)):
                 col_width = float(self.col_width)
             elif isinstance(self.col_width, str) and self.col_width == 'auto':
@@ -521,7 +521,7 @@ class Series(pd.Series):
             else:
                 raise ValueError('incorrect value of col_width.')
             ws.set_column(y, y + self.width - 1, col_width / self.width)
-        elif self.col_width and not self.horizontal:
+        elif self.col_width and self.horizontal:
             if isinstance(self.col_width, str) or self.col_width is None:
                 return
             elif isinstance(self.col_width, (int, float)):
@@ -580,14 +580,14 @@ class DataFrame(pd.DataFrame):
     
     @property
     def width(self):
-        return self.apply(lambda x: sum([ y.width for y in x ])).max(axis = 1)
+        return self.apply(lambda x: sum([ y.width for y in x ]), axis = 1).max()
     @width.setter
     def width(self, value):
         raise AttributeError('width is read-only.')
     
     @property
     def height(self):
-        return self.apply(lambda x: sum([ y.height for y in x ])).max(axis = 0)
+        return self.apply(lambda x: sum([ y.height for y in x ]), axis = 0).max()
     @height.setter
     def height(self, value):
         raise AttributeError('height is read-only.')
@@ -690,7 +690,7 @@ class DataFrame(pd.DataFrame):
         """
         df = self if inplace else self.copy()
         for i in df.index:
-            for j in df.column:
+            for j in df.columns:
                 try:
                     df.iloc[i, j].style = {**df.iloc[i, j].style, **style}
                 except ValueError:
@@ -723,7 +723,7 @@ class DataFrame(pd.DataFrame):
             stl   = cargs.pop('style', {})
             nargs = {**self.name_args, **cargs.pop('name_args', {})}
             nargs['style'] = {**nargs.get('style', {}), **stl}
-            col   = Series(col, name_args = nargs) \
+            col   = Series(col, name_args = nargs, **cargs) \
                     .addstyle(stl)
             col.draw(x, y, ws, wb, na_rep, draw_names, **kwargs)
             y += col.width
