@@ -819,7 +819,7 @@ class Dictionary(object):
         for elem in self.structure:
             w = elem['key'].get('width', 1)
             w += elem['value'].get('width', 1)
-            w += elem['hspace']
+            w += elem.get('hspace', self.hspace)
             if w > width:
                 width = w
         return width
@@ -831,13 +831,16 @@ class Dictionary(object):
     def height(self):
         height = 0
         for elem in self.structure:
-            w = elem['key'].get('width', 1)
+            w = elem['key'].get('height', 1)
             if isinstance(elem['value']['value'], list):
-                vw = len(elem['value']['value']) * elem['value']['height']
-            if vw > w:
-                w = vw
+                try:
+                    vw = sum([ e.get('height', 1) for e in elem['value']['value'] ])
+                except AttributeError:
+                    vw = len(elem['value']['value']) * elem['value'].get('height', 1)
+                if vw > w:
+                    w = vw
             height += w
-            height += elem['vspace']
+            height += elem.get('vspace', self.vspace)
         return height
     @height.setter
     def height(self, value):
@@ -942,10 +945,11 @@ class Dictionary(object):
                         e = Element(**{**elem['value'], 'value': value})
                     e.draw(x, y, ws, wb, na_rep, **kwargs)
                     x += e.height
+                x += elem.get('vspace', self.vspace)
             else:
                 e = Element(**{**elem['value'], 'value': values})
                 e.draw(x, y, ws, wb, na_rep, **kwargs)
-                x += e.height
+                x += e.height + elem.get('vspace', self.vspace)
             y = y0
 
 ###############################################################################
