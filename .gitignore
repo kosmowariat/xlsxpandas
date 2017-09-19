@@ -12,6 +12,10 @@
 *tmp*
 **/*tmp*
 
+# .xlsx files
+**/*.xlsx
+**/*.xls
+
 # pyenv version file
 .python-version
 

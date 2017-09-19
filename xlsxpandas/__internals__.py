@@ -18,6 +18,8 @@ def validate_param(x, name, expected_type, coerce = False, *args):
             type(s) to check for
         coerce : bool or function
             should attempt to coerce `x` first; arbitrary coercion function may be passed
+        *args : str
+            strings with arbitrary expressions for validating the parameter
     """
     # Optional type coercion
     if coerce is True:

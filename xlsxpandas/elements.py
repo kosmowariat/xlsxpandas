@@ -129,7 +129,7 @@ class Element(object):
         self._col_width = \
             validate_param(value, 'col_width', (float, str, type(None)),
                            lambda x: x if isinstance(x, (str, type(None))) else float(x),
-                           'if isinstance(x, float) x > 0 else True')
+                           'x > 0 if isinstance(x, float) else True')
     
     @property
     def padding(self):
@@ -154,6 +154,8 @@ class Element(object):
         self.comment_params = comment_params
         self.write_method = write_method
         self.write_args = write_args
+        self.col_width = col_width
+        self.padding = padding
     
     def make_style(self, wb):
         """Register Element's style for drawing
