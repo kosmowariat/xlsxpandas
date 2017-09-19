@@ -283,6 +283,11 @@ class Series(pd.Series):
             width of cells of the series
         style : dict
             base style of the series
+        name_args : dict
+            additional arguments passed to name element constructor
+        borders : int or None
+            borders definition for the series; 
+            set side as well as first and last elements' borders
         first : int or dict
             additional styling for the first element of the series;
             if int then it is a border value; dict is an arbitrary styling compatible with xlsxwriter
@@ -341,7 +346,7 @@ class Series(pd.Series):
     @property
     def height(self):
         if self.horizontal:
-            return self.apply(lambda x: x.heigth).max()
+            return self.apply(lambda x: x.height).max()
         else:
             return self.length
     @height.setter
@@ -368,14 +373,23 @@ class Series(pd.Series):
     # -------------------------------------------------------------------------
     
     def __init__(self, data, horizontal = False, height = 1, width = 1,
-                 style = {}, name_args = {}, first = {}, last = {}, 
+                 style = {}, name_args = {}, 
+                 borders = None, first = {}, last = {}, 
                  write_method = 'write', write_args = {}, 
                  col_width = None, padding = 2.0, **kwargs):
         """Initialization method
-        
-        xlsxpandas Series are always constructed from a pandas Series object.
         """
         super(Series, self).__init__(data, **kwargs)
+        
+        side1 = 'top' if horizontal else 'left'
+        side2 = 'bottom' if horizontal else 'right'
+        fpos = 'left' if horizontal else 'top'
+        lpos = 'right' if horizontal else 'bottom'
+        if borders:
+            style[side1] = borders
+            style[side2] = borders
+            first = {fpos: borders}
+            last = {lpos: borders}
         
         # Initilize elements ---
         for i in self.index:
@@ -402,8 +416,6 @@ class Series(pd.Series):
         # Determine first and last elements' styles ---
         felem = self.iloc[0]
         lelem = self.iloc[-1]
-        fpos = 'left' if horizontal else 'top'
-        lpos = 'right' if horizontal else 'bottom'
         fstl = {**felem.style, fpos: first} if isinstance(first, int) \
                                             else {**felem.style, **first}
         lstl = {**lelem.style, lpos: last} if isinstance(last, int) \
@@ -467,7 +479,7 @@ class Series(pd.Series):
         if not inplace:
             return self
     
-    def draw(self, x, y, ws, wb, na_rep, draw_name = True, **kwargs):
+    def draw(self, x, y, ws, wb, na_rep, draw_name = False, **kwargs):
         """Draw Series in the worksheet
         
         Parameters
@@ -550,6 +562,8 @@ class DataFrame(pd.DataFrame):
             width of the elements of the data frame
         style : dict
             base style of the data frame
+        borders : int or None
+            set border defintitions for boundary elements
         top : int or dict
             additional styling for the top row of the data frame;
             if int then it is a border value; dict is an arbitrary styling compatible with xlsxwriter
@@ -611,12 +625,18 @@ class DataFrame(pd.DataFrame):
     # -------------------------------------------------------------------------
     
     def __init__(self, data, height = 1, width = 1, style = {}, 
-                 top = {}, bottom = {}, left = {}, right = {}, 
+                 borders = None, top = {}, bottom = {}, left = {}, right = {}, 
                  write_method = 'write', write_args = {},
                  name_args = {}, col_args = {}, **kwargs):
         """Initialization method
         """
         super(DataFrame, self).__init__(data, **kwargs)
+        
+        if borders:
+            top = {**top, 'top': borders}
+            right = {**right, 'right': borders}
+            bottom = {**bottom, 'bottom': borders}
+            left = {**left, 'left': borders}
         
         # Initialize elements ---
         for i, row in self.iterrows():
@@ -725,9 +745,9 @@ class DataFrame(pd.DataFrame):
             stl   = cargs.pop('style', {})
             nargs = {**self.name_args, **cargs.pop('name_args', {})}
             nargs['style'] = {**nargs.get('style', {}), **stl}
-            col   = Series(col, name_args = nargs, **cargs) \
-                    .addstyle(stl)
-            col.draw(x, y, ws, wb, na_rep, draw_names, **kwargs)
+            col = Series(col, name_args = nargs, **cargs) \
+                  .addstyle(stl)
+            col.draw(x, y, ws, wb, na_rep, draw_name = draw_names, **kwargs)
             y += col.width
 
 ###############################################################################
