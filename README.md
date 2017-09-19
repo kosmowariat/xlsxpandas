@@ -102,7 +102,7 @@ Adding and customizing comments as well as using arbitrary `xlsxwriter`
 write methods is also supported by `xlsxpandas`.
 
 ```python
-# Simple styling examples
+# Comments and write methods
 
 import xlsxwriter
 from xlsxpandas import drawer
@@ -132,7 +132,7 @@ This is easily shown in the example below where a simple `dict` is drawn
 as a raggd table with header.
 
 ```python
-# Simple styling examples
+# Ragged table of elements
 
 import xlsxwriter
 from xlsxpandas import drawer
@@ -172,3 +172,96 @@ wb.close()
 But what is even better, operations like this are even more simple thanks to
 `xlsxpandas` extensions of `pandas` classes like `Series` and `DataFrame`
 as well as custom complex elements like `Dictionary`.
+
+### Series
+
+The `Series` class is an extension of the corresponding `pandas` class and can
+be used to easily draw vertical or horizontal lines of elements.
+It also supports adding arbitrary styeles to first and last cells,
+so fo instance it is easy to properly border entire region.
+
+```python
+# Series usage examples
+
+import xlsxwriter
+import pandas as pd
+from xlsxpandas import drawer
+from xlsxpandas.elements import Series
+
+wb = xlsxwriter.workbook.Workbook('series.xlsx')
+ws = wb.add_worksheet()
+dr = drawer.Drawer(ws, wb)
+
+# Series with borders
+s1 = Series(range(15), borders = 2)
+# Horizontal series (i.e. a table's header)
+s2 = Series(['A', 'B', 'C', 'D'], borders = 2, style = {'bold': True},
+               horizontal = True)
+dr.draw(s1)
+dr.move_horizontal()
+dr.draw(s2)
+dr.move_vertical()
+for i in range(2):
+    s = Series(range(14), borders = 1)
+    dr.draw(s)
+    dr.move_horizontal()
+
+# Series of width 2 and numbers written as text
+# xlsxpandas series may be initialized from any valid `data` value for pandas Series,
+# including other pandas series.
+s = pd.Series(range(14)).astype(str)
+s = Series(s, width = 2, borders = 1, write_method = 'write_string',
+           style = {'align': 'center'})
+
+dr.draw(s)
+
+wb.close()
+```
+
+### DataFrame
+
+The `DataFrame` class is an extension of the `pandas` class and can be used
+to easily draw entire tables. It can be provided with arbitrary column specifications
+via `col_args` (it stores arguments passed to constructors of given columns),
+as well as table-level settings including styling (and border styling)
+and write_methods with arbitrary additional parameters.
+
+```python
+# DataFrame examples
+
+import xlsxwriter
+import pandas as pd
+from xlsxpandas import drawer
+from xlsxpandas.elements import DataFrame, Series
+
+wb = xlsxwriter.workbook.Workbook('data-frame.xlsx')
+ws = wb.add_worksheet()
+dr = drawer.Drawer(ws, wb)
+
+# It is often most handy to build data frames from dicts
+df = DataFrame(
+    {
+        'A': [1, 2, 3],
+        'Long Column Name': ['aaaaaaaaaaaaaaa', 'bbb', 'CCC'],
+        'URL': ['https://www.google.com', 'https://www.google.com', 'https://www.google.com']
+    },
+    borders = 2,
+    col_args = {
+        'Long Column Name': {
+            'col_width': 'auto',
+            'style': {'bg_color': 'gray'}
+        }
+    }
+)
+
+# URL strings can be set using indexing methods
+df.loc[:, 'URL'] = df.loc[:, 'URL'] \
+                     .pipe(Series) \
+                     .setprop('write_method', 'write_url') \
+                     .setprop('write_args', [{'string': 'Link1'}, 
+                                             {'string': 'Link2'}, 
+                                             {'string': 'Link3'}])
+dr.draw(df)
+
+wb.close()
+```
