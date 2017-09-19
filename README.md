@@ -265,3 +265,67 @@ dr.draw(df)
 
 wb.close()
 ```
+
+### Dictionary
+
+The `Dictionary` class is an implementation of key-value fieldsets.
+It is useful for example when one need draw a summary or intro page in a report.
+`Dictionary` objects are internally represented as list of `dict`s or `OrderedDict`s.
+Every dict needs to have a `key` and `value` field, which is an atomic value
+or anothr key-value map that specifies proprties of the item at hand.
+
+`Dictionary` class is also equipped with a method (`load_config`) for 
+reading `.yaml` files using `OrderedDict` representation.
+It can be useful, so it is often easier to define the structure of
+a complex `Dictionary` object in a separate `.yaml` file intead of a code.
+
+```python
+# Dictionary example
+
+import xlsxwriter
+import pandas as pd
+from xlsxpandas import drawer
+from xlsxpandas.elements import Dictionary
+
+wb = xlsxwriter.workbook.Workbook('dictionary.xlsx')
+ws = wb.add_worksheet()
+dr = drawer.Drawer(ws, wb)
+
+dictionary = Dictionary(
+    [
+        {
+            'key': {
+                'value': 'key1'
+            },
+            'value': {
+                'value': ['value1', 'value2']
+            }
+        },
+        {
+            'key': {
+                'value': 'key2'
+            },
+            'value': {
+                'value': 'value3',
+                'style': {
+                    'color': 'blue',
+                    'bg_color': 'yellow',
+                    'bold': True
+                }
+            }
+        }
+    ],
+    vspace = 1,
+    hspace = 2,
+    keys_params = {
+        'italic': True
+    },
+    values_params = {
+        'underline': True
+    }
+)
+
+dr.draw(dictionary)
+
+wb.close()
+```
