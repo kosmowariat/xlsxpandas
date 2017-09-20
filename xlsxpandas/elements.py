@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Drawing element classes"""
 
 # Imported modules ------------------------------------------------------------
@@ -5,7 +6,6 @@
 # Full imports ---
 import sys, yaml, re
 import pandas as pd
-import numpy as np
 
 # Partial imports ----
 from collections import OrderedDict
@@ -17,56 +17,21 @@ from xlsxpandas.__internals__ import (
 ###############################################################################
 
 class Element(object):
-    """Implementation of an atomic report element
+    """Implementation of an atomic report element.
     
-    It is fed to a Drawer object and then
-    it is drawn in the supplied matrix xy-coordinates.
+    It is fed to a drawer object and then
+    it is drawn in the supplied matrix xy-coordinates on a worksheet
+    on which the drawer is located.
     If height or width is greater than 1, then appropriate cells
     (counting from the top-left corner are merged).
-    
-    Parameters
-    ----------
-        value : any atomic type or a tuple
-            value to be written in the element
-        height : int
-            height as a number of cells (rows); non-negative
-        width : int
-            width as a number of cells (columns); non-negative
-        style : dict
-            Element's style definition
-        comment : str
-            comment text; defaults to `None`
-        comment_params : dict
-            comment params (see xlsxwriters docs); defaults to {}
-        write_method : str
-            name of a xlsxwriter write method to use; defaults to generic `write`;
-            should be one of the valid xlsxwriter worksheet write methods (including `write_rich_string`)
-        write_args : dict
-            optional keyword arguments passed to the write method
-        col_width : float, str ['auto'] for None
-            width of the column. If the element's width is greater than 1, then width determines total width of all columns
-        padding : float
-            padding added on both sides when `col_width = 'auto'`
-    
-    Returns
-    -------
-    **Attributes**:
-        * value : element's value
-        * height : element's height
-        * width : element's widt
-        * style : element's style
-        * comment : element's comment
-        * comment_params : element's comment parameters
-        * write_method : name of a write method
-        * write_args : optional keyword arguments for the write method
-        * col_width : optional column width definition
-        * padding : padding added to column width when auto resizing
     """
     
     # -------------------------------------------------------------------------
     
     @property
     def value(self):
+        """any atomic: displayed valued of the element.
+        """
         return self._value
     @value.setter
     def value(self, value):
@@ -74,20 +39,23 @@ class Element(object):
     
     @property
     def height(self):
+        """positive int: height of the element in worksheet cells."""
         return self._height
     @height.setter
     def height(self, value):
-        self._height = validate_param(value, 'height', int, True, 'x >= 0')
+        self._height = validate_param(value, 'height', int, True, 'x > 0')
     
     @property
     def width(self):
+        """positive int: width of the element int worksheet cells."""
         return self._width
     @width.setter
     def width(self, value):
-        self._width = validate_param(value, 'width', int, True, 'x >= 0')
+        self._width = validate_param(value, 'width', int, True, 'x > 0')
     
     @property
     def style(self):
+        """dict: `xlsxwriter`-compatible style definitions for the element."""
         return self._style
     @style.setter
     def style(self, value):
@@ -95,6 +63,7 @@ class Element(object):
     
     @property
     def comment(self):
+        """str: comment text (optional)."""
         return self._comment
     @comment.setter
     def comment(self, value):
@@ -102,6 +71,7 @@ class Element(object):
     
     @property
     def comment_params(self):
+        """dict: additional comment parameters (optional)."""
         return self._comment_params
     @comment_params.setter
     def comment_params(self, value):
@@ -109,6 +79,7 @@ class Element(object):
     
     @property
     def write_method(self):
+        """str: name of a `xlsxwriter.worksheet` write method."""
         return self._write_method
     @write_method.setter
     def write_method(self, value):
@@ -116,6 +87,7 @@ class Element(object):
     
     @property
     def write_args(self):
+        """dict: additional arguments passed to the `write_method` (optional)."""
         return self._write_args
     @write_args.setter
     def write_args(self, value):
@@ -123,6 +95,9 @@ class Element(object):
     
     @property
     def col_width(self):
+        """float, 'auto' or None: width settings for columns spaned by the element.
+        If 'auto' then with is determined according to the width of the content + padding.
+        """
         return self._col_width
     @col_width.setter
     def col_width(self, value):
@@ -133,6 +108,7 @@ class Element(object):
     
     @property
     def padding(self):
+        """float: additional padding added to both sides if `col_width = 'auto'` (optional)."""
         return self._padding
     @padding.setter
     def padding(self, value):
@@ -144,7 +120,33 @@ class Element(object):
                  comment = None, comment_params = {},
                  write_method = 'write', write_args = {},
                  col_width = None, padding = 2.0):
-        """Initilization method
+        """Initilization method.
+        
+        Parameters
+        ----------
+        value : any atomic type or a tuple
+            Value to be written in the element.
+        height : int
+            Height as a number of cells (rows); non-negative.
+        width : int
+            Width as a number of cells (columns); non-negative.
+        style : dict
+            Element's style definition
+        comment : str
+            Comment text; defaults to `None`.
+        comment_params : dict
+            Comment params (see [xlsxwriters docs](xlsxwriter.readthedocs.io/worksheet.html#worksheet-write-comment)); defaults to {}.
+        write_method : str
+            Name of a `xlsxwriter.worksheet` write method to use; 
+            defaults to generic `write`;
+            should be one of the valid `xlsxwriter.worksheet` write methods 
+            (including `write_rich_string`).
+        write_args : dict
+            Optional keyword arguments passed to the write method.
+        col_width : float, 'auto' or None
+            Width of the column. If the element's width is greater than 1, then width determines total width of all columns.
+        padding : float
+            Padding added on both sides when `col_width = 'auto'`.
         """
         self.value = value
         self.height = height
@@ -157,37 +159,33 @@ class Element(object):
         self.col_width = col_width
         self.padding = padding
     
-    def make_style(self, wb):
-        """Register Element's style for drawing
-        
-        Parameters
-        ----------
-            wb : xlsxwriter.workbook.Workbook
-                workbook to register the style in
-        """
+    def _make_style(self, wb):
+        """Register Element's style for drawing"""
         return wb.add_format(self.style)
     
     def xl_upleft(self, x, y):
-        """Get upper-left corner coordinates of the Element in the standard excel notation
+        """Get upper-left corner coordinates of the Element 
+        in the standard excel notation.
         
         Parameters
         ----------
             x : int
-                element's x-coordinate (its upper-left corner)
+                Element's x-coordinate (its upper-left corner).
             y : int
-                element's y-coordinate (its upper-left corner)
+                Element's y-coordinate (its upper-left corner).
         """
         return xl_rowcol_to_cell(x, y)
     
     def xl_loright(self, x, y):
-        """Get lower-right corner cooridnates of the Element in the standard excel notation
+        """Get lower-right corner cooridnates of the Element 
+        in the standard excel notation.
         
         Parameters
         ----------
             x : int
-                element's x-coordinate (its upper-left corner)
+                Element's x-coordinate (its upper-left corner).
             y : int
-                element's y-coordinate (its upper-left corner)
+                Element's y-coordinate (its upper-left corner).
         """
         return xl_rowcol_to_cell(x + self.height - 1, y + self.width - 1)
     
@@ -197,38 +195,41 @@ class Element(object):
         Parameters
         ----------
             x : int
-                element's x-coordinate (its upper-left corner)
+                Element's x-coordinate (its upper-left corner).
             y : int
-                element's y-coordinate (its upper-left corner)
+                Element's y-coordinate (its upper-left corner).
         """
         upleft = self.xl_upleft(x, y)
         loright = self.xl_loright(x, y)
         return upleft + ':' + loright
     
     def draw(self, x, y, ws, wb, na_rep, **kwargs):
-        """Draw Element in the worksheet
+        """Draw Element in the worksheet.
+        
+        This method is public, but usually should not be used 'by hand'.
+        Instead, it is called by a drawer object's method `draw`.
         
         Parameters
         ----------
             x : int
-                x-coordinate for the upper-left corner of the Element
+                X-coordinate for the upper-left corner of the Element.
             y : int
-                y-coordinate for the upper-left corner of the Element
+                Y-coordinate for the upper-left corner of the Element.
             ws : xlsxwriter.worksheet.Worksheet
-                worksheet to write the Element in
+                Worksheet to write the Element in.
             wb : xlsxwriter.workbook.Workbook
-                workbook the worksheet is in
+                Workbook the worksheet is in.
             na_rep : str
-                string representation of missing values
+                String representation of missing values.
             **kwargs : any
-                optional keyword parameters passed to the write methods
+                Optional keyword parameters passed to the write methods.
         """
         if self.write_method == 'write_rich_string' and isinstance(self.value, tuple):
             vals = list(self.value)
             vals = [ wb.add_format({**self.style, **x}) if isinstance(x, dict) else x for x in vals ]
             self.value = tuple(vals)
         wmethod = getattr(ws, self.write_method)
-        style = self.make_style(wb)
+        style = self._make_style(wb)
         wargs = {**self.write_args, **kwargs}
         if isinstance(self.value, tuple) and self.write_method == 'write_rich_string':
             if self.height > 1 or self.width > 1:
@@ -270,54 +271,15 @@ class Series(pd.Series):
     """Series of elements
     
     This class utilizes functionalities of pandas.Series class.
-    
-    Parameters
-    ----------
-        data : array-like, dict or scalar value
-            elements that series is to be made of
-        horizontal : bool
-            should series be aligned horizontally or vertically
-        height : int
-            height of cells of the series
-        width : int
-            width of cells of the series
-        style : dict
-            base style of the series
-        name_args : dict
-            additional arguments passed to name element constructor
-        borders : int or None
-            borders definition for the series; 
-            set side as well as first and last elements' borders
-        first : int or dict
-            additional styling for the first element of the series;
-            if int then it is a border value; dict is an arbitrary styling compatible with xlsxwriter
-        last : int or dict
-            additional styling for the last element of the series
-        write_method : str
-            name of the write method for the series
-        write_args : dict
-            additional arguments for the write method of the series
-        col_width : float, str ['auto'] for None
-            width of the column. If the element's width is greater than 1, then width determines total width of all columns
-        padding : float
-            padding added on both sides when `col_width = 'auto'`
-        **kwargs : other optional parameters passed to the pandas Series constructor
-    
-    Returns
-    -------
-        * all attributes inherited from the pandas Series class
-        * horizontal : series alignment flag
-        * length : total length of all elements along the alignment axis
-        * width : total width of the series
-        * height : total height of the series
-        * col_width : optional column width definition
-        * padding : padding added to column width when auto resizing
     """
     
     # -------------------------------------------------------------------------
     
     @property
     def horizontal(self):
+        """bool: Should the series be layed out horizontally or vertically.
+        Defaults to to `True`.
+        """
         return self._horizontal
     @horizontal.setter
     def horizontal(self, value):
@@ -325,36 +287,33 @@ class Series(pd.Series):
     
     @property
     def length(self):
+        """int: Length of the series (read-only)."""
         if self.horizontal:
             return sum([ x.width for x in self.values ])
         else:
             return sum([ x.height for x in self.values ])
-    @length.setter
-    def length(self, value):
-        raise AttributeError('length is read-only.')
     
     @property
     def width(self):
+        """int: Width of the series (read-only)."""
         if self.horizontal:
             return self.length
         else:
             return self.apply(lambda x: x.width).max()
-    @width.setter
-    def width(self, value):
-        raise AttributeError('width is read-only.')
     
     @property
     def height(self):
+        """int: Height of the series (read-only)."""
         if self.horizontal:
             return self.apply(lambda x: x.height).max()
         else:
             return self.length
-    @height.setter
-    def height(self, value):
-        raise AttributeError('height is read-only.')
     
     @property
     def col_width(self):
+        """float, 'auto' or None: width settings for columns spanned by the series.
+        If 'auto' then with is determined according to the width of the content + padding.
+        """
         return self._col_width
     @col_width.setter
     def col_width(self, value):
@@ -365,6 +324,7 @@ class Series(pd.Series):
     
     @property
     def padding(self):
+        """float: additional padding added to both sides if `col_width = 'auto'` (optional)."""
         return self._padding
     @padding.setter
     def padding(self, value):
@@ -377,7 +337,42 @@ class Series(pd.Series):
                  borders = None, first = {}, last = {}, 
                  write_method = 'write', write_args = {}, 
                  col_width = None, padding = 2.0, **kwargs):
-        """Initialization method
+        """Initialization method.
+        
+        Parameters
+        ----------
+        data : array-like, dict or scalar value
+            Elements that series is to be made of.
+        horizontal : bool
+            Should series be aligned horizontally or vertically.
+        height : int
+            Height of cells of the series.
+        width : int
+            Width of cells of the series.
+        style : dict
+            Base style of the series.
+        name_args : dict
+            Additional arguments passed to name element constructor.
+        borders : int or None
+            Borders definition for the series; 
+            set side as well as first and last elements' borders.
+        first : int or dict
+            Additional styling for the first element of the series;
+            if `int` then it is a border value; 
+            `dict` is an arbitrary styling compatible with `xlsxwriter`.
+        last : int or dict
+            Additional styling for the last element of the series.
+        write_method : str
+            Name of a `xlsxwriter.worksheet` write method for the series.
+        write_args : dict
+            Additional arguments for the write method of the series.
+        col_width : float, 'auto' or None
+            Width of the column. If the element's width is greater than 1, 
+            then width determines total width of all columns.
+        padding : float
+            Padding added on both sides when `col_width = 'auto'`.
+        **kwargs 
+            Other optional parameters passed to the pandas Series constructor.
         """
         super(Series, self).__init__(data, **kwargs)
         
@@ -430,18 +425,19 @@ class Series(pd.Series):
         self.padding = padding
     
     def setprop(self, propname, value, inplace = False):
-        """Set a property of all elements in the series
+        """Set a property of all elements in the series.
         
         It is useful because it may be used after flitering the series
+        with the `pandas` methods like `loc` or `iloc`.
         
         Parameters
         ----------
             propname : str
-                property name
+                Property name.
             value : any or a list with the same length as the series
-                new value
+                New value.
             inplace : bool
-                should assignment be done in place; defaults to False
+                Should assignment be done in place; defaults to `False`.
         """
         sr = self if inplace else self.copy()
         if isinstance(value, list):
@@ -456,16 +452,16 @@ class Series(pd.Series):
             return self
     
     def addstyle(self, style, inplace = False):
-        """Add additional styling to the existing style
+        """Add additional styling to the existing style.
         
         For overwriting styles the `setprop` method should be used.
         
         Parameters
         ----------
             style : dict or list of dicts with the same length as the series
-                additional styling definitions
+                Additional styling definitions.
             inplace : bool
-                should assignment be done in place; defaults to False
+                Should assignment be done in place; defaults to `False`.
         """
         sr = self if inplace else self.copy()
         if isinstance(style, list):
@@ -480,24 +476,24 @@ class Series(pd.Series):
             return self
     
     def draw(self, x, y, ws, wb, na_rep, draw_name = False, **kwargs):
-        """Draw Series in the worksheet
+        """Draw Series in the worksheet.
         
         Parameters
         ----------
             x : int
-                x-coordinate for the upper-left corner of the Series
+                X-coordinate for the upper-left corner of the Series.
             y : int
-                y-coordinate for the upper-left corner of the Series
+                Y-coordinate for the upper-left corner of the Series.
             ws : xlsxwriter.worksheet.Worksheet
-                worksheet to write the Element in
+                Worksheet to write the Element in.
             wb : xlsxwriter.workbook.Workbook
-                workbook the worksheet is in
+                Workbook the worksheet is in.
             na_rep : str
-                string representation of missing values
+                String representation of missing values.
             draw_name : bool
-                should name element be drawn (if defined)
-            **kwargs : any
-                optional keyword parameters passed to the write methods
+                Should name element be drawn (if defined).
+            **kwargs
+                Optional keyword parameters passed to the write methods.
         """
         if self.horizontal:
             if draw_name and self.name:
@@ -546,70 +542,28 @@ class Series(pd.Series):
 ###############################################################################
 
 class DataFrame(pd.DataFrame):
-    """DataFrame of elements
+    """DataFrame of elements.
     
     This class utilizes functionalities of pandas.DataFrame class.
     Current implementation does not support data frames with hierarchical indexes,
-    and may not work correctly for such cases.
-    
-    Parameters
-    ----------
-        data : numpy ndarray (structured or homogeneous), dict, or DataFrame
-            elements that data frame is to be made of
-        height : int
-            height of the elements of the data frame
-        width : int
-            width of the elements of the data frame
-        style : dict
-            base style of the data frame
-        borders : int or None
-            set border defintitions for boundary elements
-        top : int or dict
-            additional styling for the top row of the data frame;
-            if int then it is a border value; dict is an arbitrary styling compatible with xlsxwriter
-        bottom : int or dict
-            additional styling for the bottom row of the data frame
-        left : int or dict
-            additional styling for the leftmost column of the data frame
-        right : int or dict
-            additional styling for the rightmost column of the data frame
-        write_method : str
-            write method of the data frame
-        write_args : dict
-            addtional arguments for the write method of the data frame
-        name_args : dict
-            additional arguments passed to name element constructors if names are drawn
-        col_args : dict
-            additional arbitrary arguments passed to column series constructor while drawing
-        **kwargs : other optional parameters passed to the pandas DataFrame constructor
-    
-    Returns
-    -------
-        * all attributes inherited from the pandas Series class
-        * width : total width of the data frame in the excel sheet
-        * height : total height of the data frame in the excel sheet
-        * name_args : additional arguments passed to name elements constructor
-        * col_args : additional properties for specific columns
+    and it may not work correctly for such cases.
     """
     
     # -------------------------------------------------------------------------
     
     @property
     def width(self):
+        """positive int: width of the data frame."""
         return self.apply(lambda x: sum([ y.width for y in x ]), axis = 1).max()
-    @width.setter
-    def width(self, value):
-        raise AttributeError('width is read-only.')
     
     @property
     def height(self):
+        """positive int: height of the data frame."""
         return self.apply(lambda x: sum([ y.height for y in x ]), axis = 0).max()
-    @height.setter
-    def height(self, value):
-        raise AttributeError('height is read-only.')
     
     @property
     def name_args(self):
+        """dict: additional arguments for name elements constructors."""
         return self._name_args
     @name_args.setter
     def name_args(self, value):
@@ -617,6 +571,7 @@ class DataFrame(pd.DataFrame):
     
     @property
     def col_args(self):
+        """dict: additional arguments for columns constructors."""
         return self._col_args
     @col_args.setter
     def col_args(self, value):
@@ -628,7 +583,41 @@ class DataFrame(pd.DataFrame):
                  borders = None, top = {}, bottom = {}, left = {}, right = {}, 
                  write_method = 'write', write_args = {},
                  name_args = {}, col_args = {}, **kwargs):
-        """Initialization method
+        """Initialization method.
+        
+        Parameters
+        ----------
+        data : numpy ndarray (structured or homogeneous), dict, or DataFrame
+            Elements that data frame is to be made of.
+        height : int
+            Height of the elements of the data frame.
+        width : int
+            Width of the elements of the data frame.
+        style : dict
+            Base style of the data frame.
+        borders : int or None
+            Set border defintitions for boundary elements.
+        top : int or dict
+            Additional styling for the top row of the data frame;
+            if int then it is a border value; 
+            dict is an arbitrary styling compatible with `xlsxwriter`.
+        bottom : int or dict
+            Additional styling for the bottom row of the data frame.
+        left : int or dict
+            Additional styling for the leftmost column of the data frame.
+        right : int or dict
+            Additional styling for the rightmost column of the data frame.
+        write_method : str
+            Write method of the data frame. 
+            One of the `xlsxwriter.worksheet` write methods.
+        write_args : dict
+            Addtional arguments for the write method of the data frame.
+        name_args : dict
+            Additional arguments passed to name element constructors if names are drawn.
+        col_args : dict
+            Additional arbitrary arguments passed to column series constructor while drawing.
+        **kwargs
+            other optional parameters passed to the pandas DataFrame constructor
         """
         super(DataFrame, self).__init__(data, **kwargs)
         
@@ -672,7 +661,7 @@ class DataFrame(pd.DataFrame):
         self.name_args = name_args
     
     def setprop(self, propname, value, inplace = False):
-        """Set a property of all elements in the data frame
+        """Set a property of all elements in the data frame.
         
         It is useful because it may be used after flitering the data frame.
         It does not support multiple new values.
@@ -681,11 +670,11 @@ class DataFrame(pd.DataFrame):
         Parameters
         ----------
             propname : str
-                property name
+                Property name.
             value : any
-                new value
+                New value.
             inplace : bool
-                should assignment be done in place; defaults to False
+                Should assignment be done in place; defaults to `False`.
         """
         df = self if inplace else self.copy()
         for i in df.index:
@@ -698,7 +687,7 @@ class DataFrame(pd.DataFrame):
             return self
     
     def addstyle(self, style, inplace = False):
-        """Add additional styling to the existing style
+        """Add additional styling to the existing style.
         
         For overwriting styles the `setprop` method should be used.
         Multiple style alterations should be done on series' level via `Series.addstyle` method.
@@ -706,9 +695,9 @@ class DataFrame(pd.DataFrame):
         Parameters
         ----------
             style : dict
-                additional styling definitions
+                Additional styling definitions.
             inplace : bool
-                should assignment be done in place; defaults to False
+                Should assignment be done in place; defaults to `False`.
         """
         df = self if inplace else self.copy()
         for i in df.index:
@@ -726,19 +715,19 @@ class DataFrame(pd.DataFrame):
         Parameters
         ----------
             x : int
-                x-coordinate for the upper-left corner of the DataFrame
+                X-coordinate for the upper-left corner of the DataFrame.
             y : int
-                y-coordinate for the upper-left corner of the DataFrame
+                Y-coordinate for the upper-left corner of the DataFrame.
             ws : xlsxwriter.worksheet.Worksheet
-                worksheet to write the Element in
+                Worksheet to write the Element in.
             wb : xlsxwriter.workbook.Workbook
-                workbook the worksheet is in
+                Workbook the worksheet is in.
             na_rep : str
-                string representation of missing values
+                String representation of missing values.
             draw_names : bool
-                should column names be draw; defaults to False
-            **kwargs : any
-                optional keyword parameters passed to the write methods
+                Should column names be draw; defaults to `False`.
+            **kwargs
+                Optional keyword parameters passed to the write methods.
         """
         for index, col in self.iteritems():
             cargs = self.col_args.get(index, {})
@@ -753,46 +742,20 @@ class DataFrame(pd.DataFrame):
 ###############################################################################
         
 class Dictionary(object):
-    """Visual/tabular representaion of a key => value set
+    """Visual/tabular representaion of a key => value set.
     
     This class implements a layout of fields in a report,
     in which there is one column (a key column)
     separated from a second column by a horizontal space of a given width
     that presents key (titles) and the second column presents content (values)
     for given keys. Useful form making into/definitions pages for various reports.
-    
-    Parameters
-    ----------
-        structure : OrderedDict or path to a `.yaml` file defining the structure
-            dictionary structure definition
-        hspace : int (>= 0)
-            additional horizontal spacing between keys and values
-        vspace : int (>= 0)
-            additional vertical spacing between elements (may be overwritten by element-level settings)
-        keys_params : dict
-            default set of params passed to Element constructor for the keys
-        values_params : dict
-            default set of params passed to Element consructor for the values
-        context : dict
-            additional contextual variables that may be used in the structure definition;
-            syntax @eval@'expression' enables evaluation of expressions in the structure using the context variables
-    
-    Returns
-    -------
-        * structure : definition of the structure of a Dictionary (key => value) or a path to the .yaml config file
-        * hspace : width of the additional horizontal space between key column and value column
-        * vspace : additional vertical spacing between elements
-        * keys_params : default set of params for key fields
-        * values_params : default set of params for values fields
-        * context : additional context for evaluation of values
-        * width: total width of the dictionary
-        * height : total height of the dictionary
     """
     
     # -------------------------------------------------------------------------
     
     @property
     def structure(self):
+        """list: Dictionary structure definition."""
         return self._structure
     @structure.setter
     def structure(self, value):
@@ -802,6 +765,7 @@ class Dictionary(object):
     
     @property
     def hspace(self):
+        """nonnegative int: Additional horizontal spaceing between keys and values."""
         return self._hspace
     @hspace.setter
     def hspace(self, value):
@@ -809,6 +773,7 @@ class Dictionary(object):
     
     @property
     def vspace(self):
+        """nonnegative int: Additional vertical spaceing between items."""
         return self._vspace
     @vspace.setter
     def vspace(self, value):
@@ -816,6 +781,7 @@ class Dictionary(object):
     
     @property
     def keys_params(self):
+        """dict: Additional styling for keys."""
         return self._keys_params
     @keys_params.setter
     def keys_params(self, value):
@@ -823,6 +789,7 @@ class Dictionary(object):
     
     @property
     def values_params(self):
+        """dict: Additional styling for values."""
         return self._values_params
     @values_params.setter
     def values_params(self, value):
@@ -830,6 +797,9 @@ class Dictionary(object):
     
     @property
     def context(self):
+        """dict: Additional variables used when evaluating expressions
+        embedded in keys or values content (`@eval@` syntax).
+        """
         return self._context
     @context.setter
     def context(self, value):
@@ -837,6 +807,7 @@ class Dictionary(object):
     
     @property
     def width(self):
+        """positive int: Width of the dictionary."""
         width = 0
         for elem in self.structure:
             w = elem['key'].get('width', 1)
@@ -845,12 +816,10 @@ class Dictionary(object):
             if w > width:
                 width = w
         return width
-    @width.setter
-    def width(self, value):
-        raise AttributeError('width is read-only.')
     
     @property
     def height(self):
+        """positive int: Height of the dictionary."""
         height = 0
         for elem in self.structure:
             w = elem['key'].get('height', 1)
@@ -864,15 +833,29 @@ class Dictionary(object):
             height += w
             height += elem.get('vspace', self.vspace)
         return height
-    @height.setter
-    def height(self, value):
-        raise AttributeError('height is read-only.')
     
     # -------------------------------------------------------------------------
     
     def __init__(self, structure, hspace = 1, vspace = 0,
                  keys_params = {}, values_params = {}, context = {}):
-        """Constructor method
+        """Initilization method.
+        
+        Parameters
+        ----------
+        structure : OrderedDict or path to a `.yaml` file defining the structure
+            Dictionary structure definition.
+        hspace : int (>= 0)
+            Additional horizontal spacing between keys and values.
+        vspace : int (>= 0)
+            Additional vertical spacing between elements (may be overwritten by element-level settings).
+        keys_params : dict
+            Default style definitions for keys.
+        values_params : dict
+            Default style definitions for params.
+        context : dict
+            Additional contextual variables that may be used in the structure definition.
+            Syntax @eval@'expression' enables evaluation of expressions 
+            in the structure using the context variables.
         """
         self.structure = structure
         self.hspace = hspace
@@ -883,16 +866,17 @@ class Dictionary(object):
     
     @staticmethod
     def load_config(path = None):
-        """Loads config from a config.yaml file
+        """Loads config from a config.yaml file.
     
         Parameters
         ----------
             path : str
-                path to a config file
+                Path to a config file.
             
         Returns
         -------
-            structure: config parsed to a list of OrderedDicts
+            list
+                config parsed to a `list` of `OrderedDicts`.
         """            
         def ordered_load(stream, Loader = yaml.Loader, object_pairs_hook = OrderedDict):
             class OrderedLoader(Loader):
@@ -914,13 +898,8 @@ class Dictionary(object):
             cnf.close()
         return config   
     
-    def process_value(self, x):
-        """Evaluate string agains a context
-        
-        Parameters
-        ----------
-            x : any
-                value; syntactically correct strings are processed and evaluated in the provided context
+    def _process_value(self, x):
+        """Evaluate string agains a context.
         """
         if isinstance(x, str) and re.match('^@eval@', x):
             x = re.sub('^@eval@', '', x)
@@ -929,31 +908,31 @@ class Dictionary(object):
             return x
 
     def draw(self, x, y, ws, wb, na_rep, **kwargs):
-        """Draw Dictionary in the worksheet
+        """Draw Dictionary in a worksheet.
         
         Parameters
         ----------
             x : int
-                x-coordinate for the upper-left corner of the Dictionary
+                X-coordinate for the upper-left corner of the Dictionary.
             y : int
-                y-coordinate for the upper-left corner of the Dictionary
+                Y-coordinate for the upper-left corner of the Dictionary.
             ws : xlsxwriter.worksheet.Worksheet
-                worksheet to write the Element in
+                Worksheet to write the Element in.
             wb : xlsxwriter.workbook.Workbook
-                workbook the worksheet is in
+                Workbook the worksheet is in.
             na_rep : str
-                string representation of missing values
-            **kwargs : any
-                optional keyword parameters passed to the write methods
+                String representation of missing values.
+            **kwargs
+                Optional keyword parameters passed to the write methods.
         """
         y0 = y
         for elem in self.structure:
-            elem['key']['value'] = self.process_value(elem['key']['value'])
+            elem['key']['value'] = self._process_value(elem['key']['value'])
             elem['key']['style'] = {**self.keys_params, **elem['key'].get('style', {})}
             if isinstance(elem['value']['value'], list):
-                elem['value']['value'] = [ self.process_value(x) for x in elem['value']['value'] ]
+                elem['value']['value'] = [ self._process_value(x) for x in elem['value']['value'] ]
             else:
-                elem['value']['value'] = self.process_value(elem['value']['value'])
+                elem['value']['value'] = self._process_value(elem['value']['value'])
             elem['value']['style'] = {**self.values_params, **elem['value'].get('style',{})}
             key = Element(**elem['key'])
             key.draw(x, y, ws, wb, na_rep, **kwargs)
