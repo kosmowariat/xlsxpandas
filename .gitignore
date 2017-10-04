@@ -4,9 +4,10 @@
 .pydevproject
 .settings
 
-# spyder
+# IDEs
 .spyproject
 **/.spyproject
+**/.vscode
 
 # TMP files
 *tmp*
